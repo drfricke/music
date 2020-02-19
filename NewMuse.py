@@ -8,13 +8,17 @@ from pybricks.robotics import DriveBase
 from pybricks.media.ev3dev import SoundFile, ImageFile
 import serial
 
-# Write your program here
+#Set-up
 ev3 = EV3Brick()
 s=serial.Serial("/dev/ttyACM0",9600)
 ev3.speaker.beep()
 kernel = 20  #SUPER important new variable. It decides the number of samples
 count = 0 #used later for indexing
 
+#Set-up button
+buttonCalibrate = TouchSensor(Port.S1)
+buttonFinish = TouchSensor(Port.S4)
+buttonClear = TouchSensor(Port.S3)
 
 #functions
 def zeroListMaker(n):
@@ -124,44 +128,81 @@ def FindaverageNote(aveImu, kernel):
         aveImuGZ += float(aveImu[i][5])
     return [aveImuX/kernel, aveImuY/kernel, aveImuZ/kernel, aveImuGX/kernel, aveImuGY/kernel, aveImuGZ/kernel]
 
+def calibrateAll(calLength):
+    calibrateNote('A',calLength)
+    calibrateNote('B',calLength)
+    calibrateNote('C',calLength)
+    calibrateNote('D',calLength)
+    calibrateNote('E',calLength)
+    calibrateNote('F',calLength)
+    calibrateNote('G',calLength)
+
+def processCalibration():
+    ev3.speaker.say("Processing")
+    A_ideal = parseNote('A')
+    print(A_ideal)
+    B_ideal = parseNote('B')
+    print(B_ideal)
+    C_ideal = parseNote('C')
+    print(C_ideal)
+    D_ideal = parseNote('D')
+    print(D_ideal)
+    E_ideal = parseNote('E')
+    print(E_ideal)
+    F_ideal = parseNote('F')
+    print(F_ideal)
+    G_ideal = parseNote('G')
+    print(G_ideal)
+
+    idealMatrix = [A_ideal,B_ideal,C_ideal,D_ideal,E_ideal,F_ideal,G_ideal]
+
+    return idealMatrix
+
+
+#-----------------------------CODE STARTS HERE--------------------------------
 
 # Calibration of each note
 calLength = 100
-# calibrateNote('A',calLength)
-# calibrateNote('B',calLength)
-# calibrateNote('C',calLength)
-# calibrateNote('D',calLength)
-# calibrateNote('E',calLength)
-# calibrateNote('F',calLength)
-# calibrateNote('G',calLength)
+#calibrateAll(calLength) #uncomment to calibrate from the beginning
 
 
 # Parse note files
 #reads file and decides what a perfect 'A' note looks like etc.
-ev3.speaker.say("Processing")
-A_ideal = parseNote('A')
-print(A_ideal)
-B_ideal = parseNote('B')
-print(B_ideal)
-C_ideal = parseNote('C')
-print(C_ideal)
-D_ideal = parseNote('D')
-print(D_ideal)
-E_ideal = parseNote('E')
-print(E_ideal)
-F_ideal = parseNote('F')
-print(F_ideal)
-G_ideal = parseNote('G')
-print(G_ideal)
-
-idealMatrix = [A_ideal,B_ideal,C_ideal,D_ideal,E_ideal,F_ideal,G_ideal]
+idealMatrix = processCalibration()
 
 aveImu = zeroListMaker(kernel) #starts empty list. 'kernal' large
+mySong = ''
 
 # Run a music (for each note decide what it is closest to and play that note)
 ev3.speaker.say("Begin composing")
 
+
 while True:
+    if buttonCalibrate.pressed():
+        #
+        ev3.speaker.say("Beginning Calibration")
+        calibrateAll(calLength)
+        processCalibration()
+        ev3.speaker.say("Begin composing")
+    
+    if buttonClear.pressed():
+        #delete last note
+        if len(mySong) != 0:
+            mySong = mySong[:-1]
+            ev3.speaker.say("Deleted note")
+        else:
+            ev3.speaker.say("No song yet")
+
+    if buttonFinish.pressed():
+        #play my song
+        ev3.speaker.say("Heres my song")
+        for i in range(0,len(mySong)):
+            ev3.speaker.play_notes([mySong[i]+'4/4'],tempo=120)
+        ev3.speaker.say("And thats my song")
+        mySong = ''
+
+
+
     try:
         data=s.read(s.inWaiting()).decode("utf-8")
         data = data.splitlines()
@@ -178,6 +219,7 @@ while True:
                     chosenNote = knn(playNote,idealMatrix)
                     ev3.speaker.say(chosenNote)
                     ev3.speaker.play_notes([chosenNote+'4/4'],tempo=120)
+                    mySong = mySong + chosenNote
                 elif float(imu[2]) <= .2: #recording values upto user designated kernal size
                     aveImu[count] = imu
                     count = count + 1
